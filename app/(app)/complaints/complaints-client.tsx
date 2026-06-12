@@ -8,8 +8,17 @@ import type {
   customers as customersTable,
   ComplaintStatus,
 } from "@/lib/db/schema";
+import { cn } from "@/lib/utils";
+import {
+  Plus,
+  AlertTriangle,
+  User,
+  MessageSquare,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -48,10 +57,28 @@ interface Props {
   customers: Customer[];
 }
 
-const statusColors: Record<ComplaintStatus, "default" | "secondary" | "destructive"> = {
-  open: "destructive",
-  in_progress: "secondary",
-  resolved: "default",
+const statusConfig: Record<
+  ComplaintStatus,
+  { label: string; icon: typeof AlertTriangle; variant: "default" | "secondary" | "destructive"; className: string }
+> = {
+  open: {
+    label: "Open",
+    icon: AlertCircle,
+    variant: "destructive",
+    className: "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400",
+  },
+  in_progress: {
+    label: "In Progress",
+    icon: Clock,
+    variant: "secondary",
+    className: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
+  },
+  resolved: {
+    label: "Resolved",
+    icon: CheckCircle2,
+    variant: "default",
+    className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
+  },
 };
 
 export function ComplaintsClient({ complaints, customers }: Props) {
@@ -73,10 +100,7 @@ export function ComplaintsClient({ complaints, customers }: Props) {
     toast.success("Complaint logged");
   }
 
-  async function handleStatusChange(
-    id: number,
-    status: ComplaintStatus
-  ) {
+  async function handleStatusChange(id: number, status: ComplaintStatus) {
     const notes =
       status === "resolved"
         ? prompt("Resolution notes (optional):")
@@ -87,11 +111,25 @@ export function ComplaintsClient({ complaints, customers }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Complaints</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+            <AlertTriangle className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Complaints</h1>
+            <p className="text-sm text-muted-foreground">
+              {complaints.length} total
+            </p>
+          </div>
+        </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger>
-            <Button>Log Complaint</Button>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Log Complaint
+            </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -123,7 +161,7 @@ export function ComplaintsClient({ complaints, customers }: Props) {
                   disabled={loading}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full gap-2" disabled={loading}>
                 {loading ? "Saving..." : "Log Complaint"}
               </Button>
             </form>
@@ -131,68 +169,100 @@ export function ComplaintsClient({ complaints, customers }: Props) {
         </Dialog>
       </div>
 
+      {/* Empty state */}
       {complaints.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 p-16 text-center">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <AlertTriangle className="h-6 w-6 text-muted-foreground" />
+          </div>
           <h3 className="text-lg font-medium">No complaints logged</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             Customer complaints will appear here.
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border">
+        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Customer</TableHead>
-                <TableHead>Complaint</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="hidden md:table-cell">Resolution</TableHead>
-                <TableHead className="w-32 text-right">Action</TableHead>
+              <TableRow className="bg-muted/50">
+                <TableHead className="font-medium">Customer</TableHead>
+                <TableHead className="font-medium">Complaint</TableHead>
+                <TableHead className="font-medium">Status</TableHead>
+                <TableHead className="hidden font-medium md:table-cell">
+                  Resolution
+                </TableHead>
+                <TableHead className="w-36 text-right font-medium">
+                  Update
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {complaints.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell>
-                    <Link
-                      href={`/customers/${c.customerId}`}
-                      className="font-medium hover:underline"
-                    >
-                      {c.customer?.name ?? "Unknown"}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="max-w-xs truncate">
-                    {c.complaint}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={statusColors[c.status]}>
-                      {c.status.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden max-w-xs truncate text-muted-foreground md:table-cell">
-                    {c.resolutionNotes ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {c.status !== "resolved" && (
-                      <Select
-                        defaultValue={c.status}
-                        onValueChange={(v) =>
-                          handleStatusChange(c.id, v as ComplaintStatus)
-                        }
+              {complaints.map((c) => {
+                const config = statusConfig[c.status];
+                const StatusIcon = config.icon;
+                return (
+                  <TableRow key={c.id} className="group">
+                    <TableCell>
+                      <Link
+                        href={`/customers/${c.customerId}`}
+                        className="flex items-center gap-2 font-medium hover:text-primary"
                       >
-                        <SelectTrigger className="h-8 w-28">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="open">Open</SelectItem>
-                          <SelectItem value="in_progress">In Progress</SelectItem>
-                          <SelectItem value="resolved">Resolved</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        {c.customer?.name ?? "Unknown"}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <span className="flex items-center gap-1.5">
+                        <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="max-w-xs truncate">{c.complaint}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={config.variant} className={cn("gap-1.5", config.className)}>
+                        <StatusIcon className="h-3 w-3" />
+                        {config.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden max-w-xs truncate text-muted-foreground md:table-cell">
+                      {c.resolutionNotes ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {c.status !== "resolved" && (
+                        <Select
+                          defaultValue={c.status}
+                          onValueChange={(v) =>
+                            handleStatusChange(c.id, v as ComplaintStatus)
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-32 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="open">
+                              <span className="flex items-center gap-2">
+                                <AlertCircle className="h-3.5 w-3.5" />
+                                Open
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="in_progress">
+                              <span className="flex items-center gap-2">
+                                <Clock className="h-3.5 w-3.5" />
+                                In Progress
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="resolved">
+                              <span className="flex items-center gap-2">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Resolved
+                              </span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
